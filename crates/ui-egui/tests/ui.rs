@@ -924,7 +924,7 @@ fn custom_title_bar_has_window_buttons() {
         asked: Vec::new(),
         clock: Rc::new(Cell::new(NOW)),
     });
-    let mut h = Harness::builder().with_size(egui::vec2(1180.0, 900.0)).wgpu().build_ui_state(
+    let mut h = Harness::builder().with_size(egui::vec2(1180.0, 900.0)).build_ui_state(
         move |ui, state: &mut Option<LauncherUi>| {
             if state.is_none()
                 && let Some(b) = backend.take()
@@ -1200,5 +1200,56 @@ fn the_drawer_and_the_enlarged_picture_survive_any_window_size() {
             h.run_steps(3);
         }
         h.get_by_label_contains("The image editor you already know how to use");
+    }
+}
+
+#[test]
+fn the_rate_limit_notice_never_runs_under_the_footer_links() {
+    for width in [720.0, 960.0, 1180.0] {
+        let mut evs = events();
+        evs.push(Event::CheckFinished { at: NOW - 180, source: Source::GitHubApi, rate_limited_until: Some(NOW + 1800) });
+        let mut backend = Some(Fake {
+            events: evs,
+            sent: Rc::new(RefCell::new(Vec::new())),
+            manage: true,
+            pictures: Rc::default(),
+            asked: Vec::new(),
+            clock: Rc::new(Cell::new(NOW)),
+        });
+        let mut h = Harness::builder().with_size(egui::vec2(width, 900.0)).build_ui_state(
+            move |ui, state: &mut Option<LauncherUi>| {
+                if state.is_none()
+                    && let Some(b) = backend.take()
+                {
+                    *state = Some(LauncherUi::new(ui.ctx(), Box::new(b), Settings { notify: false, ..Settings::default() }));
+                }
+                if let Some(l) = state.as_mut() {
+                    l.logic(&ui.ctx().clone(), &mut NoHost);
+                    l.ui(ui, &mut NoHost);
+                }
+            },
+            None,
+        );
+        h.run_steps(6);
+        snapshot(&mut h, &format!("footer-rate-limited-{width}"));
+        // Full or short, the notice says when GitHub can be asked again.
+        let notice = h.get_by_label_contains("in 30 min").rect();
+        let checked = h.get_by_label_contains("Checked ").rect();
+        // Cut short in a narrow window, but enough of it left to read.
+        assert!(notice.width() >= 120.0 && notice.right() <= width, "{width}: notice {notice:?}");
+        // Everything on the footer's right: the three links, the social icons and (when there's
+        // room) the platform.
+        let mut right = Vec::new();
+        for label in ["Website", "GitHub", "Discord", "X", "YouTube", "TikTok", "Instagram", "LinkedIn"] {
+            right.extend(h.query_all_by_label(label).map(|n| n.rect()).filter(|r| (r.center().y - notice.center().y).abs() < 12.0));
+        }
+        assert_eq!(right.len(), 8, "{width}: {right:?}");
+        let platform = h.query_by_label_contains("Installing for").map(|n| n.rect());
+        assert_eq!(platform.is_some(), width > 720.0, "{width}: the platform label shows unless the window is narrow");
+        right.extend(platform);
+        for r in right {
+            assert!(!r.intersects(notice), "{width}: notice {notice:?} overlaps {r:?}");
+            assert!(!r.intersects(checked), "{width}: check time {checked:?} overlaps {r:?}");
+        }
     }
 }
