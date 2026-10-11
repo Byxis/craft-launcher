@@ -74,6 +74,8 @@
 	ArtCraft Launcher {version} is available.	ArtCraft Launcher {version} est disponible.
 	Dismiss	Ignorer
 	Update and restart	Mettre à jour et redémarrer
+	A new version is available. Would you like to relaunch with the updated version?	Une nouvelle version est disponible. Redémarrer avec la nouvelle version ?
+	Later	Plus tard
 	What's new	Nouveautés
 	No notes were published with this release.	Aucune note n'a été publiée avec cette version.
 	Released {date}	Publiée le {date}
@@ -81,6 +83,7 @@
 	Close	Fermer
 	ArtCraft Launcher {version}	ArtCraft Launcher {version}
 	Only when I ask	Seulement à ma demande
+	Automatically download and install updates	Télécharger et installer les mises à jour automatiquement
 	Notify me when an installed app has an update	Me prévenir quand une application installée a une mise à jour
 	Include pre-releases (betas and release candidates)	Inclure les préversions (bêtas et versions candidates)
 	Installing on Linux	Installation sous Linux
@@ -163,18 +166,18 @@ cadcraft	Computer-aided design and drafting	Conception et dessin assistés par o
 soundcraft	Recording, editing and mixing audio	Enregistrement, édition et mixage audio
 
 # Contextual: month abbreviations for date rendering
-month	Jan	Janv.
-month	Feb	Févr.
-month	Mar	Mars
-month	Apr	Avr.
-month	May	Mai
-month	Jun	Juin
-month	Jul	Juil.
-month	Aug	Août
-month	Sep	Sept.
-month	Oct	Oct.
-month	Nov	Nov.
-month	Dec	Déc.
+month	Jan	janv.
+month	Feb	févr.
+month	Mar	mars
+month	Apr	avr.
+month	May	mai
+month	Jun	juin
+month	Jul	juil.
+month	Aug	août
+month	Sep	sept.
+month	Oct	oct.
+month	Nov	nov.
+month	Dec	déc.
 	Not checked yet	Pas encore vérifié
 	GitHub's hourly limit was reached; full details return in {min} min	La limite horaire de GitHub a été atteinte ; les détails complets reviennent dans {min} min
 	Installing for {platform}	Installation pour {platform}

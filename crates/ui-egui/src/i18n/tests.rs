@@ -254,7 +254,7 @@ fn french_locales_and_plurals_work() {
     for tag in ["fr", "fr-FR", "fr_CA.UTF-8", "fr-BE", "FR_ch"] {
         assert_eq!(lang_from_tag(tag), Some(Lang::FR), "{tag}");
     }
-    assert_eq!(super::detect::first_supported(["de-DE", "fr-FR", "en-US"]), Some(Lang::FR));
+    assert_eq!(super::detect::first_supported(["xx-XX", "fr-FR", "en-US"]), Some(Lang::FR));
     // 0 and 1 are singular in French, unlike English.
     assert_eq!(trn(Lang::FR, 0, "{n} app", "{n} apps"), "0 application");
     assert_eq!(trn(Lang::FR, 1, "{n} app", "{n} apps"), "1 application");

@@ -125,5 +125,5 @@ fn french_ui_translates_labels_dates_and_messages() {
     table.run_steps(8);
     snapshot(&mut table, "table-fr-dark");
     table.get_by_label("Installée");
-    assert!(table.query_all_by_label_contains("Août 2026").count() >= 1);
+    assert!(table.query_all_by_label_contains("août 2026").count() >= 1);
 }
