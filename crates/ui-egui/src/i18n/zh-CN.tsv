@@ -285,6 +285,19 @@ soundcraft	Recording, editing and mixing audio	音频录制、编辑与混音
 	RPM package (.rpm)	RPM 软件包 (.rpm)
 	Flatpak bundle	Flatpak 包
 	Tarball (.tar.gz)	压缩包 (.tar.gz)
+	App details	应用详情
+	Close (Esc)	关闭（Esc）
+	Features	功能特性
+	Latest release	最新发布
+	Version	版本
+	Platforms	平台
+	Releases	版本发布
+	Enlarge picture	放大图片
+	Click to enlarge	点击放大
+	Previous picture (←)	上一张（←）
+	Next picture (→)	下一张（→）
+	Loading pictures…	正在加载图片…
+	Pictures couldn't be loaded. Reopen this page to try again.	无法加载图片。重新打开此页面可重试。
 
 # Message templates (@msg): toasts from the backend. {placeholders} match any text.
 @msg	Couldn't open {name}: {e}	无法打开 {name}：{e}
