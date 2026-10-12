@@ -1045,8 +1045,6 @@ fn clicking_a_card_opens_its_details_drawer() {
     h.get_by_label("Next picture (→)").click();
     h.run_steps(3);
     h.get_by_label_contains("Curves and type layers · 1/4");
-    // The drawer ends with the trademark notice, as the grid behind it does.
-    assert_eq!(h.query_all_by_label_contains("Adobe, Photoshop, Illustrator").count(), 2);
     // Esc closes it and the page is gone once it has slid out.
     h.key_press(egui::Key::Escape);
     h.run_steps(10);
@@ -1382,7 +1380,8 @@ impl Host for OsMotion {
 fn short_window(reduce: Rc<Cell<bool>>) -> Harness<'static, Option<LauncherUi>> {
     artcraft_launcher_ui_egui::i18n::set_test_lang(artcraft_launcher_ui_egui::i18n::Lang::EN);
     let events = events().into_iter().filter(|e| !matches!(e, Event::Progress { .. })).collect();
-    let mut backend = Some(Fake { events, sent: Rc::default(), manage: true, clock: Rc::new(Cell::new(NOW)) });
+    let mut backend =
+        Some(Fake { events, sent: Rc::default(), manage: true, pictures: Rc::default(), asked: Vec::new(), clock: Rc::new(Cell::new(NOW)) });
     let mut host = OsMotion(reduce);
     let mut h = Harness::builder().with_size(egui::vec2(1180.0, 500.0)).with_step_dt(1.0 / 60.0).with_max_steps(120).build_ui_state(
         move |ui, state: &mut Option<LauncherUi>| {

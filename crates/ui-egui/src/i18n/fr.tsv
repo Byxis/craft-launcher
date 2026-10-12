@@ -258,6 +258,7 @@ column	Released	Date de publication
 
 # Contextual: the filter tab names a group (the status pill says "Installed")
 filter	Installed	Installées
+	{name} details	Détails de {name}
 
 # Plural forms for French (one|other)
 @plural	{n} app|{n} apps	{n} application|{n} applications

@@ -260,6 +260,7 @@ column	Released	Datum
 
 # Contextual: the filter tab names a group (the status pill says "Installed")
 filter	Installed	Installiert
+	{name} details	Details zu {name}
 
 # Plural forms for German (one|other)
 @plural	{n} app|{n} apps	{n} App|{n} Apps

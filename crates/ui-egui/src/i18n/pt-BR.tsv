@@ -248,6 +248,7 @@ column	Released	Lançamento
 
 # Contextual: the filter tab names a group (the status pill says "Installed")
 filter	Installed	Instalados
+	{name} details	Detalhes de {name}
 
 # Plural forms for Brazilian Portuguese (one|other)
 @plural	{n} app|{n} apps	{n} aplicativo|{n} aplicativos

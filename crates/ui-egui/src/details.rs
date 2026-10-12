@@ -11,7 +11,6 @@ use artcraft_launcher_core::protocol::Command;
 use egui::{Color32, CornerRadius, Id, Margin, Order, Rect, RichText, Sense, Stroke, Ui, emath::easing, pos2, vec2};
 
 use crate::app::LauncherUi;
-use crate::i18n::fmt;
 use crate::model::AppEntry;
 use crate::theme::{self, Tokens, rgb, tint};
 use crate::views::{FOOTER_H, HEADER_H, date_text};
@@ -95,7 +94,8 @@ impl LauncherUi {
         }
         // Asked every frame, even while closed, so the first opening starts from 0 and slides.
         let open = self.detail.is_some();
-        let k = ctx.animate_bool_with_time_and_easing(Id::new("details-slide"), open, SLIDE_SECS, easing::cubic_out);
+        let slide = if self.reduce_motion { 0.0 } else { SLIDE_SECS };
+        let k = ctx.animate_bool_with_time_and_easing(Id::new("details-slide"), open, slide, easing::cubic_out);
         let Some(id) = self.detail_shown.clone() else { return };
         let Some(details) = AppDetails::by_id(&id) else {
             self.detail = None;
@@ -147,9 +147,6 @@ impl LauncherUi {
                     features(ui, details, entry.app, &t);
                     ui.add_space(14.0);
                     self.release_section(ui, &entry, details, &t);
-                    // Naming Photoshop and co. needs the same disclaimer as the grid.
-                    ui.add_space(12.0);
-                    self.trademark_notice(ui);
                 });
             });
         });
@@ -228,7 +225,6 @@ impl LauncherUi {
                     ui.spacing_mut().item_spacing.y = 5.0;
                     widgets::wordmark(ui, app, 32.0);
                     ui.add(egui::Label::new(RichText::new(details.headline).size(15.0).color(t.ink)).wrap());
-                    widgets::hud(ui, &fmt(tl!("Like {name}"), &[("name", &app.inspired_by())]), t.faint);
                     // "Version 0.5.0 · Oct 8, 2026", or the installed-versus-latest line.
                     let version = crate::views::version_line(entry, &status);
                     if !version.trim().is_empty() {
@@ -435,10 +431,7 @@ fn drawer_area(ctx: &egui::Context) -> Rect {
 
 /// The app's links as a row of buttons sharing `row_w`; the ↗ says each opens the browser, like the links on the cards.
 fn link_buttons(ui: &mut Ui, app: &CraftApp, row_w: f32) {
-    let mut links = vec![(tl!("GitHub"), app.repo_url()), (tl!("Releases"), app.releases_url())];
-    if let Some(site) = app.website() {
-        links.insert(0, (tl!("Website"), site));
-    }
+    let links = [(tl!("Website"), app.website()), (tl!("GitHub"), app.repo_url()), (tl!("Releases"), app.releases_url())];
     let gap = ui.spacing().item_spacing.x;
     let link_w = ((row_w - gap * (links.len() as f32 - 1.0)) / links.len() as f32).floor();
     ui.horizontal(|ui| {

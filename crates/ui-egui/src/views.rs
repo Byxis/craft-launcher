@@ -402,7 +402,7 @@ impl LauncherUi {
         // they sit on top of it and keep their clicks.
         if AppDetails::by_id(id).is_some() {
             let open = ui.interact(rect, ui.id().with(("card-open", id)), Sense::click());
-            open.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{} details", app.name)));
+            open.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, fmt(tl!("{name} details"), &[("name", app.name)])));
             if open.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                 self.detail = Some(id.to_string());
             }
@@ -576,7 +576,11 @@ impl LauncherUi {
                                 if AppDetails::by_id(id).is_some() {
                                     let open = ui.interact(ui.max_rect(), ui.id().with(("row-open", id)), Sense::click());
                                     open.widget_info(|| {
-                                        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{} details", entry.app.name))
+                                        egui::WidgetInfo::labeled(
+                                            egui::WidgetType::Button,
+                                            true,
+                                            fmt(tl!("{name} details"), &[("name", entry.app.name)]),
+                                        )
                                     });
                                     if open.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                         self.detail = Some(id.to_string());
@@ -858,19 +862,19 @@ impl LauncherUi {
                     }
                 }
             }
-            if !links {
-                return;
+            // The drawer shows the links as buttons, so its menu leaves them out (but keeps Hide).
+            if links {
+                ui.separator();
+                let link = |ui: &mut Ui, label: &str, url: String| {
+                    if ui.button(label).clicked() {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                        ui.close();
+                    }
+                };
+                link(ui, tl!("Website"), entry.app.website());
+                link(ui, tl!("GitHub repository"), entry.app.repo_url());
+                link(ui, tl!("All releases"), entry.app.releases_url());
             }
-            ui.separator();
-            let link = |ui: &mut Ui, label: &str, url: String| {
-                if ui.button(label).clicked() {
-                    ui.ctx().open_url(egui::OpenUrl::new_tab(url));
-                    ui.close();
-                }
-            };
-            link(ui, tl!("Website"), entry.app.website());
-            link(ui, tl!("GitHub repository"), entry.app.repo_url());
-            link(ui, tl!("All releases"), entry.app.releases_url());
             ui.separator();
             let hidden = self.settings.hidden.contains(entry.app.id);
             if ui.button(if hidden { tl!("Unhide App") } else { tl!("Hide App") }).clicked() {
