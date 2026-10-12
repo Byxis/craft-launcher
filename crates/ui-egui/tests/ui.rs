@@ -172,7 +172,7 @@ fn harness_with(
     manage: bool,
     scale: f32,
 ) -> (Harness<'static, Option<LauncherUi>>, Rc<RefCell<Vec<Command>>>) {
-    harness_pictures(events, view, theme, manage, scale, Rc::default())
+    harness_full(events, view, theme, manage, scale, artcraft_launcher_ui_egui::TitleBar::Native, Rc::default())
 }
 
 /// Like `harness_with`, with the details pictures answered as `pictures` says (changeable during the test).
@@ -184,6 +184,35 @@ fn harness_pictures(
     scale: f32,
     pictures: Rc<Cell<Pictures>>,
 ) -> (Harness<'static, Option<LauncherUi>>, Rc<RefCell<Vec<Command>>>) {
+    harness_full(events, view, theme, manage, scale, artcraft_launcher_ui_egui::TitleBar::Native, pictures)
+}
+
+fn harness_with_title_bar(
+    events: Vec<Event>,
+    view: ViewMode,
+    theme: egui::Theme,
+    manage: bool,
+    scale: f32,
+    bar: artcraft_launcher_ui_egui::TitleBar,
+) -> (Harness<'static, Option<LauncherUi>>, Rc<RefCell<Vec<Command>>>) {
+    harness_full(events, view, theme, manage, scale, bar, Rc::default())
+}
+
+fn harness_full(
+    events: Vec<Event>,
+    view: ViewMode,
+    theme: egui::Theme,
+    manage: bool,
+    scale: f32,
+    bar: artcraft_launcher_ui_egui::TitleBar,
+    pictures: Rc<Cell<Pictures>>,
+) -> (Harness<'static, Option<LauncherUi>>, Rc<RefCell<Vec<Command>>>) {
+    struct HeaderHost(artcraft_launcher_ui_egui::TitleBar);
+    impl Host for HeaderHost {
+        fn title_bar(&self) -> artcraft_launcher_ui_egui::TitleBar {
+            self.0
+        }
+    }
     // Integration tests compile without cfg!(test), so system_lang() picks up the
     // developer's locale. Force English so labels match the assertions.
     artcraft_launcher_ui_egui::i18n::set_test_lang(artcraft_launcher_ui_egui::i18n::Lang::EN);
@@ -207,8 +236,8 @@ fn harness_pictures(
                 *state = Some(LauncherUi::new(ui.ctx(), Box::new(b), s));
             }
             if let Some(l) = state.as_mut() {
-                l.logic(&ui.ctx().clone(), &mut NoHost);
-                l.ui(ui, &mut NoHost);
+                l.logic(&ui.ctx().clone(), &mut HeaderHost(bar));
+                l.ui(ui, &mut HeaderHost(bar));
             }
         },
         None,
@@ -263,11 +292,9 @@ fn grid_shows_every_status_and_installs_on_click() {
     h.get_by_label("Update to 0.5.0");
     h.get_by_label("Update to 0.6.0");
     h.get_by_label_contains("0.4.1 installed → 0.5.0 released");
-    h.get_by_label("Like Adobe Photoshop®");
     // The window has no title bar of its own here (the web build, and the tests).
     assert!(h.query_by_label("Close").is_none());
     assert!(h.query_all_by_label_contains("Discord").count() >= 2); // header link and footer link
-    h.get_by_label_contains("Adobe, Photoshop, Illustrator");
     assert!(h.query_all_by_label("Coming soon").count() >= 1);
     h.get_by_label_contains("48 MB of 131 MB");
     h.get_by_label("Update all (2)").click();
@@ -429,15 +456,41 @@ fn table_view_and_light_theme() {
     let (mut h, sent) = harness(ViewMode::Table, egui::Theme::Light, true);
     h.run_steps(8);
     snapshot(&mut h, "table-light");
-    h.get_by_label("Adobe Photoshop®");
-    h.get_by_label("Microsoft Excel®");
-    h.get_by_label_contains("Avid and Pro Tools are trademarks");
     h.get_by_label("Update to 0.5.0").click();
     h.run_steps(2);
     assert!(sent.borrow().contains(&Command::Install { app: "photocraft".into() }));
     h.get_all_by_label("Open").next().unwrap().click();
     h.run_steps(2);
     assert!(sent.borrow().iter().any(|c| matches!(c, Command::Launch { .. })));
+}
+
+#[test]
+fn hiding_an_app_removes_it_until_it_is_unhidden() {
+    let (mut h, _) = harness(ViewMode::Table, egui::Theme::Dark, true);
+    h.run_steps(6);
+    // PhotoCraft has an update, so hiding it also drops the Updates count.
+    h.get_by_label_contains("Updates 2");
+    let row = h.get_all_by_label("PhotoCraft").next().unwrap().rect().center().y;
+    h.get_all_by_label("…").find(|n| (n.rect().center().y - row).abs() < 25.0).unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Hide App").click();
+    h.run_steps(4);
+    assert!(h.query_by_label("PhotoCraft").is_none());
+    assert!(h.state().as_ref().unwrap().settings.hidden.contains("photocraft"));
+    h.get_by_label_contains("Updates 1");
+    h.get_by_label_contains("Hidden Apps").click();
+    h.run_steps(4);
+    h.get_by_label("PhotoCraft");
+    assert!(h.query_by_label("WordCraft").is_none());
+    let row = h.get_all_by_label("PhotoCraft").next().unwrap().rect().center().y;
+    h.get_all_by_label("…").find(|n| (n.rect().center().y - row).abs() < 25.0).unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Unhide App").click();
+    h.run_steps(4);
+    h.get_by_label("PhotoCraft");
+    assert!(h.query_by_label_contains("Hidden Apps").is_none());
+    assert!(h.state().as_ref().unwrap().settings.hidden.is_empty());
+    assert_eq!(h.state().as_ref().unwrap().settings.filter, artcraft_launcher_ui_egui::settings::Filter::All);
 }
 
 #[test]
@@ -473,7 +526,7 @@ fn name_and_tagline_are_centred_on_the_icon() {
         let (mut h, _) = harness_at(ViewMode::Grid, egui::Theme::Dark, true, scale);
         h.run_steps(8);
         snapshot(&mut h, &format!("grid-dark{suffix}"));
-        let off = below_icon_centre(&h, &["PhotoCraft", "Image editing", "Like Adobe Photoshop®"]);
+        let off = below_icon_centre(&h, &["PhotoCraft", "Image editing"]);
         assert!(off.abs() < 0.25, "grid at {scale}x: {off}");
         let (mut h, _) = harness_at(ViewMode::Table, egui::Theme::Light, true, scale);
         h.run_steps(8);
@@ -515,11 +568,6 @@ fn every_table_column_sorts_both_ways() {
     h.run_steps(3);
     let o = order(&h);
     assert_eq!(&o[..4], ["WordCraft", "LightCraft", "PhotoCraft", "EffectCraft"], "{o:?}");
-    // Inspired by: A to Z.
-    h.get_by_label("Inspired by").click();
-    h.run_steps(3);
-    let o = order(&h);
-    assert_eq!(o.first().map(String::as_str), Some("PdfCraft"), "{o:?}"); // Adobe Acrobat
     // Latest: highest version first, SoundCraft (no release) last.
     h.get_by_label("Latest").click();
     h.run_steps(3);
@@ -548,6 +596,31 @@ fn settings_link_to_discord() {
 }
 
 #[test]
+fn the_uninstall_prompt_keeps_its_own_size_after_a_taller_dialog() {
+    let (mut h, _) = harness(ViewMode::Grid, egui::Theme::Dark, true);
+    h.run_steps(6);
+    // Settings is the tallest dialog: open it and close it again.
+    h.get_by_label("Settings").click();
+    h.run_steps(4);
+    h.get_by_label("Done").click();
+    h.run_steps(3);
+    // PhotoCraft is installed, so its … menu offers Uninstall.
+    h.get_all_by_label("…").next().unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("Uninstall…").click();
+    h.run_steps(4);
+    snapshot(&mut h, "uninstall-prompt-dark");
+    // The buttons follow the text closely, not somewhere down the height Settings had (#88).
+    let text = h.get_by_label("The app will be moved to the Trash. Your documents and settings stay.").rect();
+    let button = h.get_by_label("Uninstall").rect();
+    let gap = button.top() - text.bottom();
+    assert!((0.0..48.0).contains(&gap), "the buttons sit {gap} px below the text");
+    h.get_by_label("Cancel").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Uninstall").is_none());
+}
+
+#[test]
 fn links_to_the_website_github_and_each_apps_pages() {
     let (mut h, _) = harness(ViewMode::Grid, egui::Theme::Dark, true);
     h.run_steps(6);
@@ -555,18 +628,19 @@ fn links_to_the_website_github_and_each_apps_pages() {
     for label in ["Website", "GitHub", "Discord"] {
         assert!(h.query_all_by_label(label).count() >= 1, "{label}");
     }
-    // Cards: every app links to its repo; only the seven classic apps have a website (plus the footer's).
+    // Cards: every app links to its repo and to its own page on getartcraft.com (plus the footer's).
     let shown_cards = h.query_all_by_label("GitHub").count() - 1;
     let shown_sites = h.query_all_by_label("Website").count() - 1;
-    assert!(shown_cards >= 7, "{shown_cards}");
-    assert_eq!(shown_sites, 7, "only classic apps have website pages");
-    // The table's … menu has the app's GitHub repo and, for a new app, no website yet.
+    assert!(shown_cards >= 12, "{shown_cards}");
+    assert_eq!(shown_sites, 12, "every app has a website page");
+    // The table's … menu has the app's website and GitHub repo.
     let (mut h, _) = harness(ViewMode::Table, egui::Theme::Dark, true);
     h.run_steps(6);
     h.get_all_by_label("…").nth(7).unwrap().click(); // WordCraft
     h.run_steps(3);
     h.get_by_label("GitHub repository");
-    h.get_by_label("Website (coming soon)");
+    // The footer's Website link and WordCraft's now-live one in the menu.
+    assert!(h.query_all_by_label_contains("Website").count() >= 2);
 }
 
 /// Clicks the `n`th widget labelled `label` and returns the URL the app asked to open.
@@ -1252,4 +1326,174 @@ fn the_rate_limit_notice_never_runs_under_the_footer_links() {
             assert!(!r.intersects(checked), "{width}: check time {checked:?} overlaps {r:?}");
         }
     }
+}
+
+#[test]
+fn narrow_header_keeps_the_view_switch_clear_of_brand_text() {
+    use artcraft_launcher_ui_egui::TitleBar;
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        for bar in [TitleBar::Native, TitleBar::MacOs, TitleBar::Custom] {
+            let (mut h, _) = harness_with_title_bar(events(), ViewMode::Grid, theme, true, 1.0, bar);
+            for width in (720..=1180).step_by(10).chain([720, 1180]).map(|w| w as f32) {
+                h.set_size(egui::vec2(width, 900.0));
+                h.run_steps(6);
+                for label in ["Grid", "Table", "Settings", "Check for updates"] {
+                    let rect = h.get_by_label(label).rect();
+                    assert!(rect.left() >= 0.0 && rect.right() <= width, "{bar:?} {width}: {label} {rect:?}");
+                    for label in ["Launcher", "Craft App Suite"] {
+                        if let Some(text) = h.query_by_label(label) {
+                            assert!(!rect.intersects(text.rect()), "{bar:?} {width}: {label} overlaps {rect:?}");
+                        }
+                    }
+                }
+                if bar == TitleBar::Custom {
+                    for label in ["Minimize", "Maximize", "Close"] {
+                        let rect = h.get_by_label(label).rect();
+                        assert!(rect.left() >= 0.0 && rect.right() <= width, "{width}: {label} {rect:?}");
+                    }
+                }
+                if width == 1180.0 {
+                    h.get_by_label("Launcher");
+                    h.get_by_label("Craft App Suite");
+                }
+                if [720.0, 800.0, 1180.0].contains(&width) {
+                    snapshot(&mut h, &format!("header-{theme:?}-{bar:?}-{width}"));
+                }
+            }
+            h.get_by_label("Table").click();
+            h.run_steps(2);
+            assert_eq!(h.state().as_ref().unwrap().settings.view, ViewMode::Table);
+        }
+    }
+}
+
+/// A shell on an OS whose animation setting the test switches.
+struct OsMotion(Rc<Cell<bool>>);
+
+impl Host for OsMotion {
+    fn reduce_motion(&self) -> bool {
+        self.0.get()
+    }
+}
+
+/// The grid in a window too short for it, at 60 frames a second, on an OS asking for fewer
+/// animations (`reduce`) or not. Nothing is downloading, so the window is still unless something
+/// animates.
+fn short_window(reduce: Rc<Cell<bool>>) -> Harness<'static, Option<LauncherUi>> {
+    artcraft_launcher_ui_egui::i18n::set_test_lang(artcraft_launcher_ui_egui::i18n::Lang::EN);
+    let events = events().into_iter().filter(|e| !matches!(e, Event::Progress { .. })).collect();
+    let mut backend = Some(Fake { events, sent: Rc::default(), manage: true, clock: Rc::new(Cell::new(NOW)) });
+    let mut host = OsMotion(reduce);
+    let mut h = Harness::builder().with_size(egui::vec2(1180.0, 500.0)).with_step_dt(1.0 / 60.0).with_max_steps(120).build_ui_state(
+        move |ui, state: &mut Option<LauncherUi>| {
+            if state.is_none()
+                && let Some(b) = backend.take()
+            {
+                let settings = Settings { view: ViewMode::Grid, notify: false, ..Settings::default() };
+                *state = Some(LauncherUi::new(ui.ctx(), Box::new(b), settings));
+            }
+            if let Some(l) = state.as_mut() {
+                l.logic(&ui.ctx().clone(), &mut host);
+                l.ui(ui, &mut host);
+            }
+        },
+        None,
+    );
+    h.run_steps(8);
+    h
+}
+
+/// How far down the window the grid's first card is.
+fn grid_top(h: &Harness<'_, Option<LauncherUi>>) -> f32 {
+    h.get_by_label("Image editing").rect().top()
+}
+
+/// Turns the mouse wheel `lines` down over the grid, by way of the shell's `raw_input_hook`. The
+/// next frame takes it in.
+fn turn_wheel(h: &mut Harness<'_, Option<LauncherUi>>, lines: f32) {
+    h.hover_at(egui::pos2(590.0, 300.0));
+    h.run_steps(2);
+    let wheel = egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, -lines),
+        phase: egui::TouchPhase::Move,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let mut raw = egui::RawInput { events: vec![wheel], ..Default::default() };
+    if let Some(l) = h.state() {
+        l.raw_input(&h.ctx, &mut raw);
+    }
+    for event in raw.events {
+        h.event(event);
+    }
+}
+
+#[test]
+fn the_os_animation_setting_is_followed_as_it_changes() {
+    let reduce = Rc::new(Cell::new(true));
+    let mut h = short_window(reduce.clone());
+    assert_eq!(h.ctx.global_style().animation_time, 0.0);
+    // Switched back on while the launcher runs: noticed within a couple of seconds.
+    reduce.set(false);
+    h.run_steps(150);
+    assert_eq!(h.ctx.global_style().animation_time, egui::Style::default().animation_time);
+    reduce.set(true);
+    h.run_steps(150);
+    assert_eq!(h.ctx.global_style().animation_time, 0.0);
+}
+
+#[test]
+fn with_animations_off_the_wheel_scrolls_at_once() {
+    let mut h = short_window(Rc::new(Cell::new(true)));
+    let notch = 3.0 * h.ctx.options(|o| o.input_options.line_scroll_speed);
+    let start = grid_top(&h);
+    turn_wheel(&mut h, 3.0);
+    // The frame the wheel turned in, and the one that draws where it scrolled to.
+    h.run_steps(2);
+    let moved = start - grid_top(&h);
+    assert!((moved - notch).abs() < 0.5, "moved {moved} of {notch}");
+    // Nothing is left to glide.
+    h.run_steps(30);
+    assert_eq!(start - grid_top(&h), moved);
+}
+
+#[test]
+fn with_animations_on_the_wheel_glides() {
+    let mut h = short_window(Rc::new(Cell::new(false)));
+    let notch = 3.0 * h.ctx.options(|o| o.input_options.line_scroll_speed);
+    let start = grid_top(&h);
+    turn_wheel(&mut h, 3.0);
+    h.run_steps(2);
+    let moved = start - grid_top(&h);
+    assert!(moved > 0.0 && moved < notch / 2.0, "moved {moved} of {notch}");
+    // And is there within the second.
+    h.run_steps(60);
+    let moved = start - grid_top(&h);
+    assert!((moved - notch).abs() < 0.5, "moved {moved} of {notch}");
+}
+
+/// Moves the pointer from one card to the next. Returns how many frames are drawn before the
+/// window is still again.
+fn frames_to_hover_the_next_card(h: &mut Harness<'_, Option<LauncherUi>>) -> u64 {
+    let cards: Vec<egui::Pos2> = ["Image editing", "Vector illustration"].map(|t| h.get_by_label(t).rect().center()).to_vec();
+    // Still to begin with: the icons are in, the first card is lit and the scroll bar is showing.
+    h.hover_at(cards[0]);
+    h.run();
+    h.hover_at(cards[1]);
+    h.run()
+}
+
+#[test]
+fn with_animations_off_hovering_a_card_shows_at_once() {
+    let mut h = short_window(Rc::new(Cell::new(true)));
+    let frames = frames_to_hover_the_next_card(&mut h);
+    assert!(frames <= 5, "{frames} frames");
+}
+
+#[test]
+fn with_animations_on_hovering_a_card_animates() {
+    let mut h = short_window(Rc::new(Cell::new(false)));
+    // The rule wipes in and the icon rises over 0.3 s, at 60 frames a second.
+    let frames = frames_to_hover_the_next_card(&mut h);
+    assert!(frames >= 10, "{frames} frames");
 }

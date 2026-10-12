@@ -312,6 +312,7 @@ impl NativeBackend {
 
     fn start_job(&self, app_id: &str, uninstall: bool) {
         let Some(app) = CraftApp::by_id(app_id) else { return };
+        log::info!("{}: starting {} job", app.name, if uninstall { "uninstall" } else { "install/update" });
         let stop = Arc::new(Stop::default());
         let restarting = {
             let mut jobs = self.shared.jobs.lock().unwrap_or_else(PoisonError::into_inner);
@@ -341,7 +342,7 @@ impl NativeBackend {
                 shared.emit(Event::Progress { app: app.id.to_string(), phase: JobPhase::Removing });
                 let mut phase = |phase| shared.emit(Event::Progress { app: app.id.to_string(), phase });
                 match &existing {
-                    Some(inst) => install::uninstall(app, inst, record.as_ref(), &stop, &mut phase).map(|()| {
+                    Some(inst) => install::uninstall(app, inst, record.as_ref(), &paths, &stop, &mut phase).map(|()| {
                         let mut m = shared.manifest.lock().unwrap_or_else(PoisonError::into_inner);
                         if m.apps.remove(app.id).is_some() {
                             let _ = m.save(&paths.manifest());
@@ -478,7 +479,7 @@ fn run_install(
         shared.emit(Event::Progress { app: app.id.to_string(), phase: p });
     };
     let mut job = Job { http, paths, stop, phase: &mut phase };
-    let (new_record, verified) = install::install(app, &release, &asset, kind, existing, record, &mut job)?;
+    let new_record = install::install(app, &release, &asset, kind, existing, record, &mut job)?;
     {
         let mut m = shared.manifest.lock().unwrap_or_else(PoisonError::into_inner);
         let changed = match new_record {
@@ -493,11 +494,7 @@ fn run_install(
             log::warn!("couldn't save the install record: {e}");
         }
     }
-    let note = match verified {
-        http::Verified::Checksum => "",
-        http::Verified::SizeOnly => " (this release publishes no checksum, so only its size was checked)",
-    };
-    Ok(format!("{}{note}", installed_text(app, existing.is_some(), &release)))
+    Ok(installed_text(app, existing.is_some(), &release))
 }
 
 /// What a finished install tells the user.
@@ -925,7 +922,7 @@ impl Backend for NativeBackend {
             Command::Launch { app } => {
                 let Some(def) = CraftApp::by_id(&app) else { return };
                 let result = match self.installed(&app) {
-                    Some(inst) => install::launch(def, &inst),
+                    Some(inst) => install::launch(def, &inst, &self.paths),
                     None => Err(format!("{} isn't installed", def.name)),
                 };
                 if let Err(e) = result {
